@@ -45,8 +45,17 @@ function randomName(): string {
   return `${pick(ADJECTIVES)} ${pick(NOUNS)}`
 }
 
+function apiUrl(path: string): URL {
+  const base = import.meta.env.VITE_API_URL
+  return new URL(path, base ? base.replace(/\/*$/, '/') : window.location.href)
+}
+
 export function socketUrl(room: string): string {
-  const url = new URL(`api/socket/${room}`, window.location.href)
+  const url = apiUrl(`api/socket/${room}`)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.href
+}
+
+export function sgfUrl(room: string): string {
+  return apiUrl(`api/sgf/${room}`).href
 }

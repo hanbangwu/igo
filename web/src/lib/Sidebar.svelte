@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ConnectionStatus } from './connection.svelte'
   import type { GameState } from './game.svelte'
+  import { sgfUrl } from './identity'
   import { blackTotal, describeResult, whiteTotal, type Color } from './protocol'
 
   interface Props {
@@ -148,7 +149,7 @@
   {#if game.phase.state === 'finished'}
     <section class="result">
       <h2>{describeResult(game.phase.result)}</h2>
-      <a href="/api/sgf/{room}" download="{room}.sgf">Download game record</a>
+      <a href={sgfUrl(room)} download="{room}.sgf">Download game record</a>
     </section>
   {/if}
 
