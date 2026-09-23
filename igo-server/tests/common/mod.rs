@@ -1,6 +1,3 @@
-//! Test harness: a server on an ephemeral port and a JSON-speaking client.
-
-// Each test binary compiles this module separately and uses a different subset.
 #![allow(dead_code)]
 
 use std::net::SocketAddr;
@@ -13,10 +10,8 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
-/// How long a test waits for an expected message before giving up.
 const RECV_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Start a server on a free port and return its address.
 pub async fn spawn(config: ServerConfig) -> SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -30,23 +25,14 @@ pub async fn spawn(config: ServerConfig) -> SocketAddr {
 
 pub async fn spawn_default() -> SocketAddr {
     spawn(ServerConfig {
-        // Tests do not need the real static assets to exist.
         static_dir: "/nonexistent".into(),
         ..Default::default()
     })
     .await
 }
 
-/// A WebSocket client that speaks JSON and keeps a running view of the game,
-/// the way the real browser client does.
-///
-/// Folding history into local state matters because the server batches: a
-/// connection that is several moves behind receives them in one message. Tests
-/// that assumed one message per move were reading the wrong element.
 pub struct Client {
     ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
-    /// Applied moves by move number. Entries before a snapshot are `null`,
-    /// since a snapshot conveys the board rather than the log.
     moves: Vec<Value>,
     phase: Value,
     to_play: Value,
@@ -67,7 +53,6 @@ impl Client {
         }
     }
 
-    /// Connect and identify in one step, returning once the snapshot arrives.
     pub async fn join(addr: SocketAddr, room: &str, token: &str, name: &str) -> Client {
         let mut client = Client::connect(addr, room).await;
         client
@@ -85,7 +70,6 @@ impl Client {
             .expect("send");
     }
 
-    /// Receive the next JSON message, folding game state into this client.
     pub async fn recv(&mut self) -> Value {
         loop {
             let msg = tokio::time::timeout(RECV_TIMEOUT, self.ws.next())
@@ -130,15 +114,10 @@ impl Client {
         }
     }
 
-    /// Receive until a message of the given `type` arrives.
     pub async fn expect(&mut self, ty: &str) -> Value {
         self.expect_matching(ty, |_| true).await
     }
 
-    /// Receive until a message of the given `type` satisfies `predicate`.
-    ///
-    /// Presence and seat broadcasts interleave with everything else, so tests
-    /// that care about one kind of message would otherwise be order-sensitive.
     pub async fn expect_matching(
         &mut self,
         ty: &str,
@@ -153,11 +132,6 @@ impl Client {
         panic!("never received a matching {ty:?} message");
     }
 
-    /// Wait until the seats reach exactly this state.
-    ///
-    /// Every `hello` and every claim broadcasts seats, so waiting for "the
-    /// next seats message" would race. Tests use this both to assert and as a
-    /// barrier before sending moves.
     pub async fn expect_seats(&mut self, black: Option<&str>, white: Option<&str>) -> Value {
         self.expect_matching("seats", |v| {
             v["seats"]["black"] == json!(black) && v["seats"]["white"] == json!(white)
@@ -165,7 +139,6 @@ impl Client {
         .await
     }
 
-    /// Wait until move `n` has arrived and return it.
     pub async fn expect_move(&mut self, n: usize) -> Value {
         while self.moves.len() <= n {
             self.recv().await;
@@ -173,7 +146,6 @@ impl Client {
         self.moves[n].clone()
     }
 
-    /// Wait until the log is at least `n` moves long.
     pub async fn sync_to(&mut self, n: usize) {
         while self.moves.len() < n {
             self.recv().await;
@@ -196,7 +168,6 @@ impl Client {
         self.moves.len()
     }
 
-    /// Assert that nothing arrives within a short window.
     pub async fn expect_silence(&mut self) {
         let result = tokio::time::timeout(Duration::from_millis(250), self.ws.next()).await;
         if let Ok(Some(Ok(Message::Text(text)))) = result {
@@ -204,7 +175,6 @@ impl Client {
         }
     }
 
-    /// Assert the server hung up.
     pub async fn expect_closed(&mut self) {
         for _ in 0..32 {
             let msg = tokio::time::timeout(RECV_TIMEOUT, self.ws.next())
@@ -219,7 +189,6 @@ impl Client {
     }
 }
 
-/// Vertex index from row and column on a 19x19 board.
 pub fn at(row: u16, col: u16) -> u16 {
     row * 19 + col
 }

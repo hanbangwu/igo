@@ -1,12 +1,8 @@
-//! End-to-end tests over real WebSocket connections.
-
 use serde_json::json;
 
 mod common;
 use common::*;
 
-/// Seat both players and return once every client agrees they are seated.
-/// Doubles as a barrier: moves sent afterwards cannot race the claims.
 async fn seat_both(black: &mut Client, white: &mut Client) {
     black.send(&claim("black")).await;
     white.send(&claim("white")).await;
@@ -19,8 +15,6 @@ async fn a_room_is_created_by_the_first_visitor() {
     let addr = spawn_default().await;
     let mut client = Client::join(addr, "abc123", "tok-a", "Ada").await;
 
-    // Opening the same id reaches the same room, which is what makes sharing
-    // a link work with no create-game endpoint.
     let mut other = Client::join(addr, "abc123", "tok-b", "Bo").await;
     other.send(&claim("black")).await;
 
@@ -70,7 +64,6 @@ async fn one_person_cannot_hold_both_seats() {
     client.send(&claim("black")).await;
     client.expect_seats(Some("Solo"), None).await;
 
-    // Opening a second tab does not make you a second person.
     let mut second_tab = Client::join(addr, "game3", "same-token", "Solo").await;
     second_tab.send(&claim("white")).await;
     let rejected = second_tab.expect("rejected").await;
@@ -130,7 +123,6 @@ async fn a_stale_move_number_is_dropped() {
     white.send(&play(1, at(15, 15))).await;
     black.expect_move(1).await;
 
-    // Black composed this against the board before white replied.
     black.send(&play(1, at(9, 9))).await;
     let rejected = black.expect("rejected").await;
     assert!(
@@ -139,8 +131,6 @@ async fn a_stale_move_number_is_dropped() {
     );
 }
 
-/// The behaviour deliberately changed from Rustpad, which kills the socket on
-/// an invalid operation. Here a misclick must cost nothing.
 #[tokio::test]
 async fn an_illegal_move_is_refused_without_closing_the_socket() {
     let addr = spawn_default().await;
@@ -151,7 +141,6 @@ async fn an_illegal_move_is_refused_without_closing_the_socket() {
     black.send(&play(0, at(3, 3))).await;
     white.expect_move(0).await;
 
-    // White plays on top of black's stone.
     white.send(&play(1, at(3, 3))).await;
     let rejected = white.expect("rejected").await;
     assert!(
@@ -159,7 +148,6 @@ async fn an_illegal_move_is_refused_without_closing_the_socket() {
         "{rejected}"
     );
 
-    // The same connection then plays a legal move; nothing was torn down.
     white.send(&play(1, at(15, 15))).await;
     let applied = white.expect_move(1).await;
     assert_eq!(applied["color"], "white");
@@ -177,7 +165,6 @@ async fn captures_are_reported_so_a_client_needs_no_rules() {
     white.send(&play(1, at(0, 0))).await;
     black.expect_move(1).await;
 
-    // (0,0) now has one liberty; black takes it.
     black.send(&play(2, at(1, 0))).await;
     let applied = black.expect_move(2).await;
     assert_eq!(
@@ -195,7 +182,7 @@ async fn ko_is_refused_by_the_server() {
     let mut white = Client::join(addr, "ko", "tok-w", "White").await;
     seat_both(&mut black, &mut white).await;
 
-    // Build the standard ko shape:
+    // build ko:
     //   . X O
     //   X . X O
     //   . X O
@@ -246,7 +233,6 @@ async fn reconnecting_with_the_same_token_restores_the_seat() {
     black.send(&play(0, at(3, 3))).await;
     black.expect_move(0).await;
 
-    // Black refreshes the page.
     drop(black);
     let mut reconnected = Client::connect(addr, "resume").await;
     reconnected
@@ -304,7 +290,6 @@ async fn two_passes_enter_scoring_and_agreement_ends_the_game() {
     white.expect_move(3).await;
     assert_eq!(white.phase()["state"], "scoring");
 
-    // Marks start empty and both players must agree.
     let dead = white.expect("dead").await;
     assert_eq!(dead["vertices"], json!([]));
     assert_eq!(dead["accepted"], json!([]));
@@ -343,7 +328,6 @@ async fn marking_stones_dead_clears_previous_agreement() {
         .expect_matching("dead", |v| v["accepted"] == json!(["black"]))
         .await;
 
-    // White changes the marks, so black's agreement no longer applies.
     white
         .send(&json!({ "type": "toggle_dead", "vertex": at(3, 3) }))
         .await;
@@ -373,7 +357,6 @@ async fn players_can_resume_play_when_they_disagree() {
     let phase = white.expect("phase_changed").await;
     assert_eq!(phase["phase"]["state"], "playing");
 
-    // Play continues from where it left off.
     black.send(&play(2, at(3, 3))).await;
     let applied = black.expect_move(2).await;
     assert_eq!(applied["move"]["vertex"], at(3, 3));
@@ -441,7 +424,6 @@ async fn a_seat_can_be_released_only_before_the_first_move() {
     black.send(&json!({ "type": "release_seat" })).await;
     black.expect_seats(None, None).await;
 
-    // Reclaim, start the game, then try again.
     seat_both(&mut black, &mut white).await;
     black.send(&play(0, at(3, 3))).await;
     black.expect_move(0).await;
@@ -511,8 +493,6 @@ async fn unknown_rooms_and_bad_ids_are_rejected() {
     );
 }
 
-// A hand-rolled GET, so the test suite does not pull in an HTTP client for
-// three calls.
 async fn http_get(url: &str) -> String {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -543,9 +523,6 @@ async fn http_status(url: &str) -> u16 {
         .unwrap_or(0)
 }
 
-/// Seats are broadcast to everyone, but *which* seat you hold is private to
-/// your connection. Without a fresh identity the player who just sat down
-/// would never learn they had, and the client would keep the board read-only.
 #[tokio::test]
 async fn claiming_a_seat_tells_that_connection_who_it_is() {
     let addr = spawn_default().await;
@@ -563,8 +540,6 @@ async fn claiming_a_seat_tells_that_connection_who_it_is() {
         .expect_matching("identity", |v| v["you"] == "white")
         .await;
 
-    // Leaving the seat has to clear it again, or the client would keep
-    // offering moves it is no longer allowed to make.
     black.send(&json!({ "type": "release_seat" })).await;
     let identity = black
         .expect_matching("identity", |v| v["you"].is_null())
@@ -572,7 +547,6 @@ async fn claiming_a_seat_tells_that_connection_who_it_is() {
     assert!(identity["you"].is_null(), "{identity}");
 }
 
-/// A second tab of the same player must also learn it holds the seat.
 #[tokio::test]
 async fn another_tab_of_the_same_player_learns_its_seat() {
     let addr = spawn_default().await;
@@ -585,8 +559,6 @@ async fn another_tab_of_the_same_player_learns_its_seat() {
         .await;
 }
 
-/// The client renames by sending another hello, so a repeat must be a rename
-/// rather than an error — otherwise changing your name flashes a refusal.
 #[tokio::test]
 async fn a_second_hello_renames_the_player() {
     let addr = spawn_default().await;
@@ -599,7 +571,6 @@ async fn a_second_hello_renames_the_player() {
         .await;
     black.expect_seats(Some("Renamed"), None).await;
 
-    // Swapping token on a live connection would silently change who you are.
     black
         .send(&json!({ "type": "hello", "token": "someone-else", "name": "Nope" }))
         .await;
@@ -613,7 +584,6 @@ async fn a_second_hello_renames_the_player() {
     );
 }
 
-/// An empty or absurd name must not reach the other player's screen as-is.
 #[tokio::test]
 async fn names_are_trimmed_and_defaulted() {
     let addr = spawn_default().await;

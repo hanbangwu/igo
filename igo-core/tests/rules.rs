@@ -1,14 +1,13 @@
-//! Rules tests driven by ASCII board diagrams.
-//!
-//! `X` is black, `O` is white, `.` is empty. Row 0 is the top line.
+//! Row 0 is the top line.
+//! `X` is black
+//! `O` is white
+//! `.` is empty
 
 use std::collections::HashSet;
 
 use igo_core::board::Point;
 use igo_core::{Board, Color, Game, Move, MoveError, Vertex, DEFAULT_KOMI};
 
-/// Build a board from a diagram. Panics on a malformed diagram, which in a
-/// test is exactly what you want.
 fn board(size: u8, diagram: &str) -> Board {
     let mut b = Board::new(size);
     let mut row = 0u8;
@@ -37,7 +36,6 @@ fn game(size: u8, diagram: &str, to_play: Color) -> Game {
     Game::from_board(board(size, diagram), to_play, DEFAULT_KOMI)
 }
 
-/// Vertex from (row, col) for a given board size.
 fn at(size: u8, row: u8, col: u8) -> Vertex {
     row as Vertex * size as Vertex + col as Vertex
 }
@@ -52,7 +50,7 @@ fn play(g: &mut Game, color: Color, row: u8, col: u8) -> Result<igo_core::Applie
     )
 }
 
-// ---------------------------------------------------------------- captures
+// captures
 
 #[test]
 fn captures_a_single_stone() {
@@ -95,9 +93,6 @@ fn captures_a_multi_stone_group() {
 
 #[test]
 fn a_group_touched_twice_is_captured_once() {
-    // Black's move touches the white group at two separate points. The
-    // captured list must not contain duplicates, or the client delta would
-    // remove the same stone twice and the capture count would be wrong.
     let mut g = game(
         5,
         "
@@ -120,7 +115,7 @@ fn a_group_touched_twice_is_captured_once() {
     assert_eq!(g.captures(), [3, 0]);
 }
 
-// ----------------------------------------------------------------- suicide
+// suicide
 
 #[test]
 fn suicide_is_rejected() {
@@ -142,9 +137,6 @@ fn suicide_is_rejected() {
 
 #[test]
 fn a_move_that_captures_is_not_suicide() {
-    // Black's stone at (0,0) would have no liberties of its own, but playing
-    // it removes the white group first. Resolving captures before the suicide
-    // test is what makes this legal.
     let mut g = game(
         5,
         "
@@ -163,9 +155,6 @@ fn a_move_that_captures_is_not_suicide() {
 
 #[test]
 fn snapback() {
-    // A white ring around a two-point eye space. Black plays inside, white
-    // captures the lone stone, and that capture puts the whole ring in atari
-    // so black takes all of it back.
     let mut g = game(
         6,
         "
@@ -189,7 +178,7 @@ fn snapback() {
     assert_eq!(g.captures(), [11, 1]);
 }
 
-// ---------------------------------------------------------------------- ko
+// ko
 
 const KO: &str = "
     .....
@@ -205,7 +194,6 @@ fn ko_recapture_is_rejected() {
     let take = play(&mut g, Color::White, 2, 1).expect("captures the black stone");
     assert_eq!(take.captured, vec![at(5, 2, 2)]);
 
-    // Recapturing immediately would restore the starting position.
     assert_eq!(play(&mut g, Color::Black, 2, 2), Err(MoveError::Superko));
     assert_eq!(g.move_number(), 1);
 }
@@ -218,18 +206,12 @@ fn ko_can_be_retaken_after_a_threat_is_answered() {
     play(&mut g, Color::Black, 4, 4).expect("black plays a threat");
     play(&mut g, Color::White, 4, 0).expect("white answers");
 
-    // The board now differs from the original by two stones, so the same
-    // recapture is a new position and therefore legal.
     let retake = play(&mut g, Color::Black, 2, 2).expect("no longer a repeat");
     assert_eq!(retake.captured, vec![at(5, 2, 1)]);
 }
 
 #[test]
 fn superko_compares_against_every_previous_position() {
-    // The rejected recapture above restores the *initial* position, two plies
-    // back, not merely the immediately preceding one. This is positional
-    // superko rather than a single remembered ko point, so longer cycles
-    // (triple ko, eternal life) are caught by the same mechanism.
     let mut g = game(5, KO, Color::White);
     let start = g.board().clone();
 
@@ -239,7 +221,7 @@ fn superko_compares_against_every_previous_position() {
     assert_eq!(play(&mut g, Color::Black, 2, 2), Err(MoveError::Superko));
 }
 
-// ------------------------------------------------------- groups and edges
+// groups and edges
 
 #[test]
 fn corner_and_edge_liberties() {
@@ -251,7 +233,6 @@ fn corner_and_edge_liberties() {
         ....O
         .....
         XX..O",
-        // corner, edge, and a two-stone corner group
     );
 
     assert_eq!(
@@ -273,8 +254,6 @@ fn corner_and_edge_liberties() {
 
 #[test]
 fn shared_liberties_are_counted_once() {
-    // An L of three stones. (1,1) is adjacent to two of them but is a single
-    // liberty; double-counting it would make dead groups look alive.
     let b = board(
         5,
         "
@@ -292,7 +271,7 @@ fn shared_liberties_are_counted_once() {
     );
 }
 
-// ----------------------------------------------------------- turn and flow
+// turn and flow
 
 #[test]
 fn players_must_alternate() {
@@ -328,7 +307,6 @@ fn two_passes_enter_scoring() {
     g.play(Color::White, Move::Pass).unwrap();
     assert_eq!(g.phase(), &igo_core::Phase::Scoring);
 
-    // No further moves until the players resolve scoring.
     assert_eq!(play(&mut g, Color::Black, 0, 0), Err(MoveError::NotPlaying));
 }
 
@@ -371,7 +349,7 @@ fn resignation_ends_the_game() {
     assert_eq!(play(&mut g, Color::White, 0, 0), Err(MoveError::NotPlaying));
 }
 
-// ----------------------------------------------------------------- scoring
+// scoring
 
 #[test]
 fn area_score_counts_stones_and_territory() {
@@ -459,13 +437,6 @@ fn dead_stones_become_territory_for_the_surrounding_player() {
 
 #[test]
 fn seki_shared_liberties_score_for_neither_side() {
-    // A real seki: the two empty points are the *only* liberties of both the
-    // black and the white group. Whoever fills one goes down to a single
-    // liberty and is captured, so neither can move and both live.
-    //
-    // Under area scoring this needs no special case at all — the region
-    // touches both colours, so it is dame and counts for neither side. That is
-    // the main reason to prefer area scoring over territory scoring here.
     let g = game(
         5,
         "

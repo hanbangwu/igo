@@ -1,5 +1,3 @@
-//! SGF export, parsing, and round-tripping.
-
 use igo_core::sgf::{self, SgfGame};
 use igo_core::{Color, Game, Move, DEFAULT_KOMI};
 
@@ -9,7 +7,6 @@ fn at(size: u8, row: u8, col: u8) -> u16 {
 
 #[test]
 fn coordinates_map_to_sgf_letters() {
-    // aa is the top left; the column letter comes first.
     assert_eq!(sgf::sgf_to_vertex(19, "aa"), Some(0));
     assert_eq!(sgf::sgf_to_vertex(19, "pd"), Some(at(19, 3, 15)));
     assert_eq!(sgf::sgf_to_vertex(19, "ss"), Some(at(19, 18, 18)));
@@ -22,7 +19,6 @@ fn coordinates_map_to_sgf_letters() {
     );
     assert_eq!(sgf::sgf_to_vertex(9, "ss"), None, "off a 9x9 board");
 
-    // On boards larger than 19, tt is a real point rather than a pass.
     assert_eq!(sgf::sgf_to_vertex(21, "tt"), Some(at(21, 19, 19)));
 }
 
@@ -73,7 +69,6 @@ fn parses_size_komi_handicap_and_variations() {
     assert_eq!(record.setup_black, vec![at(9, 2, 2), at(9, 6, 6)]);
     assert!(record.setup_white.is_empty());
 
-    // Only the main line, not the two variations that follow it.
     assert_eq!(
         record.moves,
         vec![
@@ -109,7 +104,6 @@ fn handicap_setup_means_white_plays_first() {
 #[test]
 fn round_trips_a_game_with_captures() {
     let mut original = Game::new(9, DEFAULT_KOMI);
-    // Black surrounds and captures a white stone in the corner.
     for (color, row, col) in [
         (Color::Black, 0, 1),
         (Color::White, 0, 0),
@@ -171,9 +165,6 @@ fn rejects_input_that_is_not_a_game_tree() {
     assert!(sgf::parse("(;SZ[99])").is_err(), "board size out of range");
 }
 
-/// A long generated game exercises the parser and the engine far harder than a
-/// handful of hand-written positions: it accumulates captures, ko bans and
-/// large groups, and every move must survive the export/parse/replay cycle.
 #[test]
 fn round_trips_a_long_generated_game() {
     let mut rng: u64 = 0x1234_5678_9abc_def0;
@@ -213,8 +204,6 @@ fn round_trips_a_long_generated_game() {
 
 #[test]
 fn replay_reports_the_move_that_broke_the_rules() {
-    // Two stones on the same point: the second must be reported, not silently
-    // dropped. This is what makes replaying outside records a useful check.
     let record = SgfGame {
         size: 19,
         komi: DEFAULT_KOMI,

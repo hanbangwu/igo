@@ -32,7 +32,7 @@ pub fn vertex_to_sgf(board: &Board, v: Vertex) -> String {
 pub fn sgf_to_vertex(size: u8, s: &str) -> Option<Vertex> {
     let bytes = s.as_bytes();
     if bytes.len() != 2 {
-        return None; // empty value: a pass
+        return None;
     }
     let col = bytes[0].checked_sub(b'a')?;
     let row = bytes[1].checked_sub(b'a')?;

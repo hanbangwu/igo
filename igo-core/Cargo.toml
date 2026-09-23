@@ -3,7 +3,6 @@ name = "igo-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Rules engine for the game of Go. Pure Rust, no I/O, wasm-compatible."
 
 [dependencies]
 serde = { workspace = true }

@@ -1,20 +1,20 @@
 <script lang="ts">
-  import type { ConnectionStatus } from "./connection.svelte";
-  import type { GameState } from "./game.svelte";
-  import { blackTotal, describeResult, whiteTotal, type Color } from "./protocol";
+  import type { ConnectionStatus } from './connection.svelte'
+  import type { GameState } from './game.svelte'
+  import { blackTotal, describeResult, whiteTotal, type Color } from './protocol'
 
   interface Props {
-    game: GameState;
-    room: string;
-    status: ConnectionStatus;
-    name: string;
-    onclaim: (color: Color) => void;
-    onrelease: () => void;
-    onpass: () => void;
-    onresign: () => void;
-    onaccept: () => void;
-    onresume: () => void;
-    onrename: (name: string) => void;
+    game: GameState
+    room: string
+    status: ConnectionStatus
+    name: string
+    onclaim: (color: Color) => void
+    onrelease: () => void
+    onpass: () => void
+    onresign: () => void
+    onaccept: () => void
+    onresume: () => void
+    onrename: (name: string) => void
   }
 
   let {
@@ -28,37 +28,36 @@
     onresign,
     onaccept,
     onresume,
-    onrename,
-  }: Props = $props();
+    onrename
+  }: Props = $props()
 
-  let copied = $state(false);
+  let copied = $state(false)
 
-  const shareUrl = $derived(`${window.location.origin}${window.location.pathname}#${room}`);
-  const canRelease = $derived(game.you !== null && game.moveNumber === 0);
-  const iAccepted = $derived(game.you !== null && game.accepted.includes(game.you));
+  const shareUrl = $derived(`${window.location.origin}${window.location.pathname}#${room}`)
+  const canRelease = $derived(game.you !== null && game.moveNumber === 0)
+  const iAccepted = $derived(game.you !== null && game.accepted.includes(game.you))
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      copied = true;
-      setTimeout(() => (copied = false), 1500);
+      await navigator.clipboard.writeText(shareUrl)
+      copied = true
+      setTimeout(() => (copied = false), 1500)
     } catch {
-      // Clipboard access can be denied; the input is selectable as a fallback.
-      copied = false;
+      copied = false
     }
   }
 
   function seatLabel(color: Color): string {
-    const occupant = color === "black" ? game.seats.black : game.seats.white;
-    if (occupant) return occupant;
-    return "Empty seat";
+    const occupant = color === 'black' ? game.seats.black : game.seats.white
+    if (occupant) return occupant
+    return 'Empty seat'
   }
 </script>
 
 <aside class="sidebar">
   <header>
     <h1>igo</h1>
-    <span class="status" class:ok={status === "connected"}>
+    <span class="status" class:ok={status === 'connected'}>
       {status}
       {#if game.connections > 0}· {game.connections} here{/if}
     </span>
@@ -68,22 +67,26 @@
     <label for="share">Invite your opponent</label>
     <div class="row">
       <input id="share" readonly value={shareUrl} onclick={(e) => e.currentTarget.select()} />
-      <button onclick={copyLink}>{copied ? "Copied" : "Copy"}</button>
+      <button onclick={copyLink}>{copied ? 'Copied' : 'Copy'}</button>
     </div>
   </section>
 
   <section class="seats">
-    {#each ["black", "white"] as const as color (color)}
-      <div class="seat" class:mine={game.you === color} class:turn={game.playing && game.toPlay === color}>
+    {#each ['black', 'white'] as const as color (color)}
+      <div
+        class="seat"
+        class:mine={game.you === color}
+        class:turn={game.playing && game.toPlay === color}
+      >
         <span class="disc {color}"></span>
         <div class="who">
           <strong>{seatLabel(color)}</strong>
           <small>
-            {game.captures[color === "black" ? 0 : 1]} captured
-            {#if color === "white"}· {game.komi} komi{/if}
+            {game.captures[color === 'black' ? 0 : 1]} captured
+            {#if color === 'white'}· {game.komi} komi{/if}
           </small>
         </div>
-        {#if (color === "black" ? game.seats.black : game.seats.white) === null && game.you === null}
+        {#if (color === 'black' ? game.seats.black : game.seats.white) === null && game.you === null}
           <button onclick={() => onclaim(color)}>Sit</button>
         {:else if game.you === color && canRelease}
           <button class="quiet" onclick={onrelease}>Leave</button>
@@ -104,16 +107,14 @@
       <button class="danger" onclick={onresign}>Resign</button>
     </section>
     <p class="note">
-      {game.myTurn ? "Your move." : "Waiting for your opponent."}
+      {game.myTurn ? 'Your move.' : 'Waiting for your opponent.'}
     </p>
   {/if}
 
   {#if game.scoring}
     <section class="scoring">
       <h2>Scoring</h2>
-      <p class="note">
-        Click a group to mark it dead. Both players must agree.
-      </p>
+      <p class="note">Click a group to mark it dead. Both players must agree.</p>
       {#if game.score}
         <table>
           <tbody>
@@ -133,18 +134,18 @@
       {#if game.you !== null}
         <div class="actions">
           <button onclick={onaccept} disabled={iAccepted}>
-            {iAccepted ? "Waiting for opponent" : "Accept"}
+            {iAccepted ? 'Waiting for opponent' : 'Accept'}
           </button>
           <button class="quiet" onclick={onresume}>Resume play</button>
         </div>
       {/if}
       {#if game.accepted.length > 0}
-        <p class="note">Accepted: {game.accepted.join(", ")}</p>
+        <p class="note">Accepted: {game.accepted.join(', ')}</p>
       {/if}
     </section>
   {/if}
 
-  {#if game.phase.state === "finished"}
+  {#if game.phase.state === 'finished'}
     <section class="result">
       <h2>{describeResult(game.phase.result)}</h2>
       <a href="/api/sgf/{room}" download="{room}.sgf">Download game record</a>
@@ -264,7 +265,6 @@
   .seat.mine {
     border-color: var(--accent);
   }
-  /* Whose turn it is has to be readable at a glance from across the room. */
   .seat.turn {
     background: var(--surface-strong);
   }

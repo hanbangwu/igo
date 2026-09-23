@@ -9,7 +9,6 @@ use crate::zobrist;
 
 pub const DEFAULT_KOMI: f32 = 7.5;
 
-/// A move a player can make.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Move {

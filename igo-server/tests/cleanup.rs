@@ -1,5 +1,3 @@
-//! Garbage collection of idle rooms.
-
 use std::time::Duration;
 
 use igo_server::ServerConfig;
@@ -8,7 +6,6 @@ use serde_json::json;
 mod common;
 use common::*;
 
-/// A server that reclaims rooms almost immediately.
 async fn spawn_impatient() -> std::net::SocketAddr {
     spawn(ServerConfig {
         max_idle: Duration::from_millis(50),
@@ -36,9 +33,6 @@ async fn reclaiming_a_room_drops_its_connections() {
     let addr = spawn_impatient().await;
     let mut client = Client::join(addr, "doomed", "tok-a", "Ada").await;
 
-    // The connection is idle, so nothing keeps the room alive. Dropping it on
-    // collection is what stops watchers lingering against a room that can no
-    // longer be reached.
     client.expect_closed().await;
 }
 
@@ -58,7 +52,6 @@ async fn a_game_in_progress_is_not_swept_while_it_is_being_used() {
     white.send(&claim("white")).await;
     black.expect_seats(Some("Black"), Some("White")).await;
 
-    // Reconnecting touches the room, which is what keeps it alive.
     for n in 0..4 {
         tokio::time::sleep(Duration::from_millis(150)).await;
         let mut toucher = Client::join(addr, "busy", "tok-s", "Watcher").await;
@@ -78,7 +71,6 @@ async fn stats_reports_live_rooms() {
 
     let _a = Client::join(addr, "room-a", "tok-a", "Ada").await;
     let _b = Client::join(addr, "room-b", "tok-b", "Bo").await;
-    // Two connections to the same id share one room.
     let _c = Client::join(addr, "room-b", "tok-c", "Cy").await;
 
     assert_eq!(room_count(addr).await, 2);
