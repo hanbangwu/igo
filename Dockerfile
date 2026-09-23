@@ -7,11 +7,11 @@ COPY igo-server igo-server
 RUN cargo test --release --workspace
 RUN cargo build --release -p igo-server
 
-FROM node:lts-alpine AS frontend
+FROM oven/bun AS frontend
 WORKDIR /src
-COPY web/package.json web/package-lock.json ./
+COPY web/package.json web/bun.lock ./
 RUN bun prune --production
-RUN bun install --production
+RUN bun install --frozen-lockfile
 COPY web .
 RUN bun run check
 RUN bun run build

@@ -114,6 +114,7 @@ pub fn app(config: ServerConfig) -> Router {
         .route("/api/socket/{id}", get(socket_handler))
         .route("/api/sgf/{id}", get(sgf_handler))
         .route("/api/stats", get(stats_handler))
+        .route("/api/health", get(|| async { "ok" }))
         .with_state(state)
         .fallback_service(files)
 }
